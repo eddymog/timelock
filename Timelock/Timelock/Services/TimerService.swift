@@ -5,18 +5,26 @@ import SwiftData
 /// Owns the running session. The only type that starts or stops one.
 @Observable
 final class TimerService {
-    private(set) var runningSession: Session?
+    private(set) var runningSession: Session? {
+        didSet { runningSession == nil ? stopTicking() : startTicking() }
+    }
+    /// Bumped every tick so views that read `elapsed` re-render. Display only.
+    private(set) var tick = 0
 
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let clock: Clock
+    @ObservationIgnored private let tickInterval: TimeInterval
+    @ObservationIgnored private var ticker: Timer?
 
-    init(context: ModelContext, clock: Clock = SystemClock()) {
+    init(context: ModelContext, clock: Clock = SystemClock(), tickInterval: TimeInterval = 1) {
         self.context = context
         self.clock = clock
+        self.tickInterval = tickInterval
     }
 
     /// Time since the running session started; always derived from timestamps.
     var elapsed: TimeInterval {
+        _ = tick
         guard let session = runningSession else { return 0 }
         return clock.now.timeIntervalSince(session.startedAt)
     }
@@ -51,5 +59,19 @@ final class TimerService {
         )
         descriptor.fetchLimit = 1
         runningSession = try? context.fetch(descriptor).first
+    }
+
+    private func startTicking() {
+        guard ticker == nil else { return }
+        let timer = Timer(timeInterval: tickInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick += 1 }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+    }
+
+    private func stopTicking() {
+        ticker?.invalidate()
+        ticker = nil
     }
 }

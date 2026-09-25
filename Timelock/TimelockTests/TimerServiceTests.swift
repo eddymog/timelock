@@ -117,4 +117,45 @@ final class TimerServiceTests: XCTestCase {
         XCTAssertEqual(orphan.endedAt, clock.now)
         XCTAssertNil(timer.runningSession)
     }
+
+    // MARK: Tick (task 1.5)
+
+    func testElapsedChangeIsPublishedWhileRunning() {
+        let ticking = TimerService(context: context, clock: clock, tickInterval: 0.05)
+        ticking.start(working)
+        let changed = expectation(description: "elapsed observers notified")
+        withObservationTracking {
+            _ = ticking.elapsed
+        } onChange: {
+            changed.fulfill()
+        }
+
+        wait(for: [changed], timeout: 2)
+        ticking.stop()
+    }
+
+    func testTickingStopsWhenSessionStops() {
+        let ticking = TimerService(context: context, clock: clock, tickInterval: 0.05)
+        ticking.start(working)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertGreaterThan(ticking.tick, 0)
+
+        ticking.stop()
+        let ticksAtStop = ticking.tick
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        XCTAssertEqual(ticking.tick, ticksAtStop)
+    }
+
+    func testRecoveredSessionTicks() throws {
+        context.insert(Session(startedAt: clock.now))
+        try context.save()
+        let ticking = TimerService(context: context, clock: clock, tickInterval: 0.05)
+
+        ticking.recoverOnLaunch()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        XCTAssertGreaterThan(ticking.tick, 0)
+        ticking.stop()
+    }
 }
