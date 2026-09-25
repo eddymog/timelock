@@ -28,6 +28,7 @@ struct TimelockApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
 
+        try? ActivitySeeder.seedIfEmpty(container.mainContext)
         let timer = TimerService(context: container.mainContext)
         timer.recoverOnLaunch()
         _timer = State(initialValue: timer)
@@ -35,8 +36,7 @@ struct TimelockApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Button("Quit Timelock") { NSApplication.shared.terminate(nil) }
-                .padding()
+            MenuBarPopover(timer: timer)
         } label: {
             MenuBarLabel(timer: timer)
         }
