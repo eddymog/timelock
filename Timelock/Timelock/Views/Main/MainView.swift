@@ -3,6 +3,7 @@ import SwiftData
 
 struct MainView: View {
     let timer: TimerService
+    @Environment(ErrorCenter.self) private var errors
     @Environment(\.openWindow) private var openWindow
 
     @Query(filter: #Predicate<Activity> { !$0.isArchived }, sort: \Activity.createdAt)
@@ -31,6 +32,7 @@ struct MainView: View {
         }
         .padding(16)
         .frame(minWidth: 300, maxWidth: 360)
+        .errorAlert(errors)
     }
 
     private func runningBlock(_ session: Session) -> some View {

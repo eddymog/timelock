@@ -4,6 +4,7 @@ import SwiftData
 /// Minimal activity manager: add, rename, recolor, archive (FR-101, FR-102).
 struct ActivityEditorView: View {
     @Environment(\.modelContext) private var context
+    @Environment(ErrorCenter.self) private var errors
     @Query(sort: \Activity.createdAt) private var activities: [Activity]
 
     var body: some View {
@@ -15,7 +16,7 @@ struct ActivityEditorView: View {
             HStack {
                 Button {
                     context.insert(Activity(name: "New Activity", colorHex: "#3B82F6"))
-                    try? context.save()
+                    errors.perform("Adding the activity") { try context.save() }
                 } label: {
                     Label("Add Activity", systemImage: "plus")
                 }
@@ -24,12 +25,14 @@ struct ActivityEditorView: View {
             .padding(10)
         }
         .frame(minWidth: 420, minHeight: 320)
+        .errorAlert(errors)
     }
 }
 
 private struct ActivityEditorRow: View {
     @Bindable var activity: Activity
     @Environment(\.modelContext) private var context
+    @Environment(ErrorCenter.self) private var errors
 
     var body: some View {
         HStack {
@@ -37,11 +40,15 @@ private struct ActivityEditorRow: View {
                 .labelsHidden()
             TextField("Name", text: $activity.name)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit { try? context.save() }
+                .onSubmit { save() }
             Toggle("Archived", isOn: $activity.isArchived)
-                .onChange(of: activity.isArchived) { try? context.save() }
+                .onChange(of: activity.isArchived) { save() }
         }
         .opacity(activity.isArchived ? 0.5 : 1)
+    }
+
+    private func save() {
+        errors.perform("Saving the activity") { try context.save() }
     }
 
     private var colorBinding: Binding<Color> {
@@ -50,7 +57,7 @@ private struct ActivityEditorRow: View {
             set: { newColor in
                 guard let c = NSColor(newColor).usingColorSpace(.sRGB) else { return }
                 activity.colorHex = HexColor.hex(red: c.redComponent, green: c.greenComponent, blue: c.blueComponent)
-                try? context.save()
+                save()
             }
         )
     }

@@ -158,4 +158,32 @@ final class TimerServiceTests: XCTestCase {
         XCTAssertGreaterThan(ticking.tick, 0)
         ticking.stop()
     }
+
+    // MARK: Persistence errors
+
+    private struct SaveFailure: Error {}
+
+    func testFailedSaveOnStartIsReportedButSessionStillRuns() {
+        let errors = ErrorCenter()
+        let failing = TimerService(context: context, clock: clock, errors: errors, save: { throw SaveFailure() })
+
+        failing.start(working)
+
+        XCTAssertNotNil(failing.runningSession)
+        XCTAssertNotNil(errors.current)
+    }
+
+    func testFailedSaveOnStopIsReportedButSessionStillEnds() throws {
+        let errors = ErrorCenter()
+        let failing = TimerService(context: context, clock: clock, errors: errors, save: { throw SaveFailure() })
+        failing.start(working)
+        errors.dismiss()
+        let session = try XCTUnwrap(failing.runningSession)
+
+        failing.stop()
+
+        XCTAssertNotNil(session.endedAt)
+        XCTAssertNil(failing.runningSession)
+        XCTAssertNotNil(errors.current)
+    }
 }

@@ -14,12 +14,22 @@ final class TimerService {
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let clock: Clock
     @ObservationIgnored private let tickInterval: TimeInterval
+    @ObservationIgnored private let errors: ErrorCenter
+    @ObservationIgnored private let save: () throws -> Void
     @ObservationIgnored private var ticker: Timer?
 
-    init(context: ModelContext, clock: Clock = SystemClock(), tickInterval: TimeInterval = 1) {
+    init(
+        context: ModelContext,
+        clock: Clock = SystemClock(),
+        tickInterval: TimeInterval = 1,
+        errors: ErrorCenter = ErrorCenter(),
+        save: (() throws -> Void)? = nil
+    ) {
         self.context = context
         self.clock = clock
         self.tickInterval = tickInterval
+        self.errors = errors
+        self.save = save ?? { try context.save() }
     }
 
     /// Time since the running session started; always derived from timestamps.
@@ -40,14 +50,14 @@ final class TimerService {
         let session = Session(startedAt: clock.now)
         session.activity = activity
         context.insert(session)
-        try? context.save()
+        errors.perform("Saving the new session", save)
         runningSession = session
     }
 
     func stop() {
         guard let session = runningSession else { return }
         session.endedAt = clock.now
-        try? context.save()
+        errors.perform("Saving the stopped session", save)
         runningSession = nil
     }
 
@@ -58,7 +68,11 @@ final class TimerService {
             sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
         )
         descriptor.fetchLimit = 1
-        runningSession = try? context.fetch(descriptor).first
+        do {
+            runningSession = try context.fetch(descriptor).first
+        } catch {
+            errors.report(error, while: "Restoring the running session")
+        }
     }
 
     private func startTicking() {
