@@ -8,6 +8,10 @@
 import SwiftUI
 import SwiftData
 
+enum WindowID {
+    static let activities = "activities"
+}
+
 @main
 struct TimelockApp: App {
     private let container: ModelContainer
@@ -41,6 +45,11 @@ struct TimelockApp: App {
             MenuBarLabel(timer: timer)
         }
         .menuBarExtraStyle(.window)
+        .modelContainer(container)
+
+        Window("Activities", id: WindowID.activities) {
+            ActivityEditorView()
+        }
         .modelContainer(container)
     }
 }

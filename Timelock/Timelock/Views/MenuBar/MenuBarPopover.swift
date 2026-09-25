@@ -3,6 +3,7 @@ import SwiftData
 
 struct MenuBarPopover: View {
     let timer: TimerService
+    @Environment(\.openWindow) private var openWindow
 
     @Query(filter: #Predicate<Activity> { !$0.isArchived }, sort: \Activity.createdAt)
     private var activities: [Activity]
@@ -23,6 +24,11 @@ struct MenuBarPopover: View {
             }
 
             Divider()
+            Button("Manage Activities…") {
+                openWindow(id: WindowID.activities)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+            .buttonStyle(.plain)
             Button("Quit Timelock") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
