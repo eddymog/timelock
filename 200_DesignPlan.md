@@ -22,14 +22,14 @@ How Timelock will be built. It turns the requirements in [100_Requirements.md](1
 | Deployment target | macOS 14.0 |
 | App Sandbox | **Off.** Sandboxed apps can't run `sudo`, or quit other apps. Personal use only, so this is acceptable. |
 | Hardened Runtime | On |
-| Dock icon | Hidden (`LSUIElement = YES`), so it's a menu bar app; the main window opens from the menu |
+| Dock icon | Shown (regular app; `LSUIElement` is not set). Closing the window keeps the app, and any running session, alive |
 | Dependencies | None |
 
 ### Folder structure
 
 ```
 Timelock/
-├── TimelockApp.swift            // @main, MenuBarExtra + main Window scenes
+├── TimelockApp.swift            // @main, main Window scene
 ├── Models/                      // SwiftData: Activity, BlockGroup, BlockRule, Session
 ├── Services/
 │   ├── TimerService.swift       // running-session state machine
@@ -39,7 +39,7 @@ Timelock/
 │   ├── AppBlocker.swift         // NSWorkspace watcher
 │   └── NotificationService.swift
 ├── Views/
-│   ├── MenuBar/                 // popover, start sheet
+│   ├── Main/                    // home view (timer + activity list), start sheet
 │   ├── Activities/              // list, editor, rule editor, groups
 │   ├── History/
 │   ├── Reports/
@@ -118,7 +118,7 @@ clear()       ->  websiteBlocker.unblock()
               ->  appBlocker.stop()
 ```
 
-If the website blocker fails, the session still runs (app blocking and timing continue) and the popover shows a warning: "Website blocking unavailable – run install.sh". It doesn't silently fail (principle 5).
+If the website blocker fails, the session still runs (app blocking and timing continue) and the main window shows a warning: "Website blocking unavailable – run install.sh". It doesn't silently fail (principle 5).
 
 ### 4.3 WebsiteBlocker
 
@@ -190,9 +190,9 @@ The app checks for the script at launch (`status` via `sudo -n`) and, if it fail
 
 ## 6. UI Design
 
-### 6.1 Menu bar and popover
+### 6.1 Main window: timer view
 
-Menu bar item: idle → clock icon; running → `● Working 01:23:45` (FR-206).
+The home view of the window. Idle shows only the activity list; running adds the block at the top (FR-206).
 
 ```
 ┌───────────────────────────────┐
@@ -206,16 +206,17 @@ Menu bar item: idle → clock icon; running → `● Working 01:23:45` (FR-206).
 │ ▶ Studying                    │
 │ ▶ Writing                     │
 ├───────────────────────────────┤
-│ Open Timelock…    Settings…   │
+│ Manage Activities…            │   (becomes the sidebar in M4)
 └───────────────────────────────┘
 ```
 
 **Start flow:** clicking ▶ opens a small sheet: *Commitment (optional)* with presets `None · 25 · 50 · 90 min · Custom`, default `None` (Gentle, FR-802), then **Start**.
 
-### 6.2 Main window (sidebar navigation)
+### 6.2 Main window (sidebar navigation, from M4)
 
 | Section | Contents |
 |---|---|
+| **Timer** | The home view above |
 | **Activities** | List with color and total time; editor shows name/color, its own rules, attached groups |
 | **Groups** | Shared lists (Distractions, …) with a "Global" toggle (FR-305, FR-306) |
 | **History** | Sessions by day; edit times, delete, add manual entry (FR-701 to FR-703) |
@@ -234,7 +235,7 @@ User taps ▶ → (optional Commitment) → TimerService.start
   → save Session → BlockingCoordinator.apply
       ├─ hosts script: block + flush DNS
       └─ AppBlocker: quit running matches, watch launches
-  → menu bar shows timer
+  → window shows the running stopwatch
 ```
 
 **Launch recovery** (FR-205, FR-406)
@@ -247,7 +248,7 @@ App launches → fetch Session where endedAt == nil
 **Stop**
 ```
 User taps Stop → canStop? ── no → show "N min left" (button disabled)
-                        └─ yes → save endedAt → clear blocks → menu bar idle
+                        └─ yes → save endedAt → clear blocks → window idle
 ```
 
 **Mac sleeps mid-session:** nothing to do. The timestamp math is unaffected, and blocks stay in place. If a Commitment period ended while asleep, `canStop` is true on wake.
@@ -284,7 +285,7 @@ User taps Stop → canStop? ── no → show "N min left" (button disabled)
 
 | Milestone | Deliverable | Requirements |
 |---|---|---|
-| **M1: Timer core** | Xcode project, SwiftData models, `TimerService`, menu bar item with running stopwatch, start/stop, recovery on launch | FR-101, FR-102, FR-201 to FR-206, NFR-04, NFR-06 |
+| **M1: Timer core** | Xcode project, SwiftData models, `TimerService`, main window with running stopwatch, start/stop, recovery on launch | FR-101, FR-102, FR-201 to FR-206, NFR-04, NFR-06 |
 | **M2: App blocking** | Rule editor for apps, `AppBlocker`, notification on block | FR-302, FR-303, FR-501 to FR-504 |
 | **M3: Website blocking** | `timelock-hosts` + `install.sh`, `HostsFileBlocker`, domain normalization, stale-entry cleanup | FR-301, FR-304, FR-401 to FR-406, NFR-07 to NFR-10 |
 | **M4: History** | Day-grouped sessions list | FR-701 |
@@ -300,7 +301,7 @@ Milestones M1 to M3 give a usable app; M4 completes the MVP; M5 and M6 make up v
 
 | Risk | Mitigation |
 |---|---|
-| A live-updating menu bar title in `MenuBarExtra` can be unreliable with `TimelineView` | Drive the label from `TimerService.elapsed`, updated by a 1 s `Timer`; verify in M1 before building more UI |
+| A stopwatch in the window is invisible when the window is closed | Accepted: the session and blocks keep running. Optionally show elapsed time in the Dock icon badge or Dock menu later |
 | A bad `sudoers` file can break `sudo` | `install.sh` validates with `visudo -cf` before installing; keep a root shell open while installing the first time |
 | macOS or browsers cache DNS, so blocks seem to lag | Flush after every change; document that an open tab may need a reload |
 | Browsers using DNS-over-HTTPS bypass the hosts file | Accepted for the MVP; mention in Settings; a Network Extension could replace `HostsFileBlocker` later |

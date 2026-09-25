@@ -34,8 +34,8 @@ Requirements for Timelock, a macOS app that combines Toggl-style time tracking w
 | FR-203 | Only one activity can run at a time. Starting another stops the current one first. | Must |
 | FR-204 | Elapsed time is computed from the stored start timestamp, so it stays correct across sleep, app restarts and crashes. | Must |
 | FR-205 | On launch, if a session has no end time, the app resumes it and re-applies its blocks. | Must |
-| FR-206 | The menu bar shows the running activity and elapsed time (e.g. `● Working 01:23:45`). | Must |
-| FR-207 | Today's total tracked time is shown in the popover. | Should |
+| FR-206 | The main window shows the running activity and its elapsed time (e.g. `Working 01:23:45`). | Must |
+| FR-207 | Today's total tracked time is shown in the main window. | Should |
 | FR-208 | Optional auto-stop after N minutes of idle time. | Could |
 
 ### 2.3 Block rules

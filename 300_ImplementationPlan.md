@@ -18,7 +18,7 @@ Step-by-step build plan. Each task is small enough to finish and verify on its o
 | 0.2 | Run `git init` in the project folder; add a `.gitignore` for Xcode (`xcuserdata/`, `DerivedData/`, `.DS_Store`). | `git status` works |
 | 0.3 | In Xcode: **New Project → macOS → App**, SwiftUI, name `Timelock`, storage **SwiftData**, include Tests. Save it inside this folder. | App runs and shows the default window |
 | 0.4 | Set deployment target to **macOS 14.0**. Under Signing & Capabilities: turn **App Sandbox off**, keep Hardened Runtime on, sign with "Sign to Run Locally". | Builds and runs |
-| 0.5 | Add `LSUIElement = YES` (Application is agent) to Info.plist. Delete the default `WindowGroup` content and the sample `Item` model. | No Dock icon; app launches to nothing |
+| 0.5 | Delete the default `WindowGroup` content and the sample `Item` model (leave a placeholder scene so the app compiles). Keep the Dock icon: `LSUIElement` is **not** set. | App builds and launches |
 | 0.6 | Create the folder groups from the design plan (Models, Services, Views, Support). | Groups exist in Xcode |
 | 0.7 | Create `Scripts/` at the repo root (outside the Xcode target). | Folder exists |
 
@@ -26,7 +26,7 @@ Step-by-step build plan. Each task is small enough to finish and verify on its o
 
 ## Phase 1 – M1: Timer Core
 
-Goal: a menu bar item with a running stopwatch that survives restarts.
+Goal: a main window with a running stopwatch that survives restarts.
 
 | # | Task | Verify |
 |---|---|---|
@@ -35,11 +35,11 @@ Goal: a menu bar item with a running stopwatch that survives restarts.
 | 1.3 | **TimerService (test first).** Write tests for: `start` creates a session with `endedAt == nil`; `elapsed` = `now - startedAt`; `stop` sets `endedAt`; starting a second activity stops the first; `stop` with Gentle always succeeds. Then implement `TimerService` (`@Observable`, main actor) with `start`, `stop`, `elapsed`, `canStop`, state `.idle / .running`. | `⌘U`: tests pass |
 | 1.4 | **Recovery.** Test then implement `recoverOnLaunch()`: fetch the session with `endedAt == nil` and resume it. Call it at app start. | Test passes; manual: force-quit mid-session, relaunch, time continues |
 | 1.5 | **Tick.** Add a 1 s `Timer` in `TimerService` that updates a published `elapsed` while running (display only). | Value changes each second |
-| 1.6 | **MenuBarExtra.** In `TimelockApp`, add a `MenuBarExtra` with `.menuBarExtraStyle(.window)`. Label shows a clock icon when idle and `● <name> HH:MM:SS` when running. Add a `DurationFormatter` in Support (with tests: 0s, 59s, 1h 1m 1s, over 24h). | Timer visibly counts in the menu bar |
-| 1.7 | **Popover.** List activities with a ▶ button; running block at the top with Stop. | Start/stop works end to end |
+| 1.6 | **DurationFormatter.** Add `DurationFormatter` in Support (with tests: 0s, 59s, 1h 1m 1s, over 24h). | Tests pass |
+| 1.7 | **Main window.** In `TimelockApp`, a `Window` scene showing the running block at the top (name, large `HH:MM:SS`, Stop) and the activity list with a ▶ button. Closing the window must not quit the app. | Start/stop works end to end; stopwatch counts live |
 | 1.8 | **Activity editor (minimal).** Sheet or window to add, rename, recolor and archive activities (FR-101, FR-102). Seed "Working" on first launch. | Can create an activity and run it |
 
-**Checkpoint:** run the timer, quit the app, relaunch, and confirm the time is right. If the menu bar label doesn't update live, fix it now (design plan §11, first risk).
+**Checkpoint:** run the timer, quit the app, relaunch, and confirm the time is right. If the stopwatch doesn't update live, fix it now (design plan §11, first risk).
 
 ---
 
@@ -74,9 +74,9 @@ Goal: a menu bar item with a running stopwatch that survives restarts.
 | 3.6 | **`WebsiteBlocker` protocol + `FakeWebsiteBlocker`** (records calls, can throw). | Compiles |
 | 3.7 | **`HostsFileBlocker`.** Run `/usr/bin/sudo -n /usr/local/bin/timelock-hosts …` with `Process`; capture the exit code and stderr; throw a typed error on failure. Pass domains as separate arguments, never through a shell string. | Manual block/unblock from the app |
 | 3.8 | **Website rules UI.** "Websites" section in the activity editor: text field that runs `DomainNormalizer` and shows inline errors (FR-301, FR-303). | Adding `https://www.youtube.com/x` stores `youtube.com` |
-| 3.9 | **BlockingCoordinator (part 2).** Add website blocking; on failure, keep the session running and surface a warning in the popover (design plan §4.2). Coordinator tests with `FakeWebsiteBlocker`, including the failure path. | Tests pass |
+| 3.9 | **BlockingCoordinator (part 2).** Add website blocking; on failure, keep the session running and surface a warning in the main window (design plan §4.2). Coordinator tests with `FakeWebsiteBlocker`, including the failure path. | Tests pass |
 | 3.10 | **Stale cleanup.** On launch, if no session is running, call `unblock` (FR-406). | Manually add a fake block, relaunch: removed |
-| 3.11 | **Setup check.** At launch, run `sudo -n timelock-hosts status`; if it fails, show a "Website blocking isn't set up, run install.sh" banner in the popover and Settings. | Banner appears when the sudoers file is removed |
+| 3.11 | **Setup check.** At launch, run `sudo -n timelock-hosts status`; if it fails, show a "Website blocking isn't set up, run install.sh" banner in the main window and Settings. | Banner appears when the sudoers file is removed |
 
 **Checkpoint:** run the real scenario: "Working" with `youtube.com` and Discord. YouTube fails, Discord closes, stop restores both.
 
@@ -86,7 +86,7 @@ Goal: a menu bar item with a running stopwatch that survives restarts.
 
 | # | Task | Verify |
 |---|---|---|
-| 4.1 | **Main window.** A `Window` scene with a `NavigationSplitView` sidebar: Activities, History (others added later). "Open Timelock…" in the popover opens it and activates the app. | Window opens from the menu |
+| 4.1 | **Sidebar.** Wrap the existing main window in a `NavigationSplitView` sidebar: Timer (current home view), Activities, History (others added later). Reopen the window from the Dock icon after closing it. | Sidebar switches sections; Dock click reopens the window |
 | 4.2 | **History view.** Query sessions sorted by start descending; group by calendar day with a day total; each row shows activity color, name, start–end, duration. Running session shows "running". | Sessions listed correctly |
 | 4.3 | **Acceptance walkthrough.** Run all 7 steps in 100_Requirements.md §5, including force-quit and reboot recovery, and compare `/etc/hosts` with the backup afterwards. | All 7 pass |
 
@@ -102,7 +102,7 @@ Goal: a menu bar item with a running stopwatch that survives restarts.
 | 5.2 | **Attach groups to activities.** Multi-select in the activity editor. Editing a group changes every activity using it. Verify the effective rules test covers this. | Two activities share one group |
 | 5.3 | **Edit and delete sessions.** Edit start/end (validate `end > start`, no overlap with the running session), delete with confirmation (FR-702). | Edits persist |
 | 5.4 | **Manual entries.** "Add entry" sheet for a past period (FR-703). | Entry appears in History |
-| 5.5 | **Today's total** in the popover (FR-207); includes the running session. | Number matches History |
+| 5.5 | **Today's total** in the main window (FR-207); includes the running session. | Number matches History |
 | 5.6 | **Reports.** Swift Charts bar chart: time per activity, day/week/month picker (FR-704). Aggregation is a pure function with tests (sessions crossing midnight, running session, empty range). | Chart matches History totals |
 
 ---
@@ -113,7 +113,7 @@ Goal: a menu bar item with a running stopwatch that survives restarts.
 |---|---|---|
 | 6.1 | **Commitment logic (test first).** `start(activity, minimumDuration:)` sets `minimumEndAt`; `canStop` false before it and true after; `stop` throws `commitmentActive(remaining)`; starting another activity during Commitment is refused; recovery restores `minimumEndAt` (FR-602, FR-604). | Tests pass |
 | 6.2 | **Start sheet.** Presets `None · 25 · 50 · 90 · Custom`, default None (Gentle) (FR-601). | Sheet appears on ▶ |
-| 6.3 | **Popover behavior.** Stop disabled during Commitment; show the remaining time, updating each second (FR-603). | Countdown visible; Stop enabled at 0 |
+| 6.3 | **Timer view behavior.** Stop disabled during Commitment; show the remaining time, updating each second (FR-603). | Countdown visible; Stop enabled at 0 |
 | 6.4 | **Settings.** Launch at login (`SMAppService.mainApp.register()/unregister()`), default mode, notifications toggle, and hosts-script setup status (FR-801 to FR-803). | Toggles persist |
 | 6.5 | **Final pass.** VoiceOver labels, keyboard navigation, light and dark mode (NFR-12); re-run the acceptance walkthrough, plus a Commitment scenario. | Checklist passes |
 

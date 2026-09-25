@@ -20,17 +20,16 @@ A macOS app that combines **Toggl-style time tracking** with **Freedom-style blo
 
 ## User Experience
 
-### Menu bar app (primary surface)
-The app lives in the menu bar, like Toggl Track's mini timer.
+### Main window (primary surface)
+Timelock is a regular macOS window app with a Dock icon. Closing the window does not quit the app, so a running session and its blocks stay active; quit with ⌘Q.
 
-- Menu bar shows the running activity and elapsed time: `● Working  01:23:45`
-- Clicking opens a popover:
-  - List of activities, each with a play button
+- The home view shows:
   - Currently running activity at the top with a large stopwatch and a Stop button
+  - List of activities, each with a play button
   - Today's total time
 - Only **one activity runs at a time**. Starting another stops the current one (and swaps the block list).
 
-### Main window
+Further sections:
 - **Activities**: create/edit/delete, choose color, manage block list.
 - **Timeline / History**: list of sessions by day; edit start/end, delete, or add a manual entry.
 - **Reports**: time per activity by day / week / month (bar chart + totals).
@@ -127,7 +126,7 @@ A currently running session is simply a `Session` with `endedAt == nil`. On laun
 ```
 ┌─────────────────────────────┐
 │  Timelock.app (SwiftUI)    │
-│  - Menu bar popover / UI    │
+│  - Main window UI           │
 │  - TimerService             │
 │  - AppBlocker (NSWorkspace) │
 │  - SwiftData store          │
@@ -141,7 +140,7 @@ A currently running session is simply a `Session` with `endedAt == nil`. On laun
 └─────────────────────────────┘
 ```
 
-- **Language / UI**: Swift + SwiftUI, `MenuBarExtra` for the menu bar item.
+- **Language / UI**: Swift + SwiftUI, a `Window` scene for the main window.
 - **State**: a single `TimerService` owns the "current session" and publishes changes; starting/stopping it calls `BlockingCoordinator`, which fans out to the website blocker (`timelock-hosts` script) and app blocker.
 - **Target**: macOS 14+.
 - **Distribution**: personal use for now, run locally. Sharing it later would mean Developer ID signing + notarization and replacing the sudoers setup.
@@ -155,7 +154,7 @@ Native **Swift + SwiftUI**, using only Apple frameworks (no third-party dependen
 | Need | Technology |
 |---|---|
 | Language and UI | Swift 5.9+, SwiftUI |
-| Menu bar item and popover | `MenuBarExtra` |
+| Main window | SwiftUI `Window` scene |
 | Stopwatch | `Timer` / `TimelineView`, computed as `now - startedAt` |
 | Local storage | SwiftData |
 | App blocking | `NSWorkspace` launch notifications + `NSRunningApplication.terminate()` |
@@ -175,7 +174,7 @@ Native **Swift + SwiftUI**, using only Apple frameworks (no third-party dependen
 3. Create a new `Session(startedAt: now)`.
 4. Resolve rules: activity rules + global rules.
 5. The script writes hosts entries and flushes DNS; app blocker quits running blocked apps and begins watching launches.
-6. Menu bar starts showing the elapsed time.
+6. The window shows the running stopwatch.
 
 **Stop activity**
 1. Set `endedAt = now`.
@@ -194,7 +193,7 @@ Native **Swift + SwiftUI**, using only Apple frameworks (no third-party dependen
 ## Roadmap
 
 **MVP (v0.1)**
-- Menu bar app with activities and a start/stop stopwatch
+- Main window with activities and a start/stop stopwatch
 - Session history persisted locally
 - App blocking (NSWorkspace) + website blocking (hosts file via `timelock-hosts` script)
 - Per-activity block lists
