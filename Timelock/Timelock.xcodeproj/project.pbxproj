@@ -14,19 +14,11 @@
 			remoteGlobalIDString = 9D5BB3553066D2CD00B629A1;
 			remoteInfo = Timelock;
 		};
-		9D5BB3703066D2CF00B629A1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 9D5BB34E3066D2CD00B629A1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 9D5BB3553066D2CD00B629A1;
-			remoteInfo = Timelock;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		9D5BB3563066D2CD00B629A1 /* Timelock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Timelock.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D5BB3653066D2CF00B629A1 /* TimelockTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TimelockTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9D5BB36F3066D2CF00B629A1 /* TimelockUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TimelockUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -38,11 +30,6 @@
 		9D5BB3683066D2CF00B629A1 /* TimelockTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TimelockTests;
-			sourceTree = "<group>";
-		};
-		9D5BB3723066D2CF00B629A1 /* TimelockUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = TimelockUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -58,11 +45,6 @@
 			files = (
 			);
 		};
-		9D5BB36C3066D2CF00B629A1 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			files = (
-			);
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -71,7 +53,6 @@
 			children = (
 				9D5BB3583066D2CD00B629A1 /* Timelock */,
 				9D5BB3683066D2CF00B629A1 /* TimelockTests */,
-				9D5BB3723066D2CF00B629A1 /* TimelockUITests */,
 				9D5BB3573066D2CD00B629A1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -81,7 +62,6 @@
 			children = (
 				9D5BB3563066D2CD00B629A1 /* Timelock.app */,
 				9D5BB3653066D2CF00B629A1 /* TimelockTests.xctest */,
-				9D5BB36F3066D2CF00B629A1 /* TimelockUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -128,27 +108,6 @@
 			productReference = 9D5BB3653066D2CF00B629A1 /* TimelockTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		9D5BB36E3066D2CF00B629A1 /* TimelockUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 9D5BB37D3066D2CF00B629A1 /* Build configuration list for PBXNativeTarget "TimelockUITests" */;
-			buildPhases = (
-				9D5BB36B3066D2CF00B629A1 /* Sources */,
-				9D5BB36C3066D2CF00B629A1 /* Frameworks */,
-				9D5BB36D3066D2CF00B629A1 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				9D5BB3713066D2CF00B629A1 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				9D5BB3723066D2CF00B629A1 /* TimelockUITests */,
-			);
-			name = TimelockUITests;
-			productName = TimelockUITests;
-			productReference = 9D5BB36F3066D2CF00B629A1 /* TimelockUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -163,10 +122,6 @@
 						CreatedOnToolsVersion = 27.0;
 					};
 					9D5BB3643066D2CF00B629A1 = {
-						CreatedOnToolsVersion = 27.0;
-						TestTargetID = 9D5BB3553066D2CD00B629A1;
-					};
-					9D5BB36E3066D2CF00B629A1 = {
 						CreatedOnToolsVersion = 27.0;
 						TestTargetID = 9D5BB3553066D2CD00B629A1;
 					};
@@ -188,7 +143,6 @@
 			targets = (
 				9D5BB3553066D2CD00B629A1 /* Timelock */,
 				9D5BB3643066D2CF00B629A1 /* TimelockTests */,
-				9D5BB36E3066D2CF00B629A1 /* TimelockUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -200,11 +154,6 @@
 			);
 		};
 		9D5BB3633066D2CF00B629A1 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			files = (
-			);
-		};
-		9D5BB36D3066D2CF00B629A1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -222,11 +171,6 @@
 			files = (
 			);
 		};
-		9D5BB36B3066D2CF00B629A1 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			files = (
-			);
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -234,11 +178,6 @@
 			isa = PBXTargetDependency;
 			target = 9D5BB3553066D2CD00B629A1 /* Timelock */;
 			targetProxy = 9D5BB3663066D2CF00B629A1 /* PBXContainerItemProxy */;
-		};
-		9D5BB3713066D2CF00B629A1 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 9D5BB3553066D2CD00B629A1 /* Timelock */;
-			targetProxy = 9D5BB3703066D2CF00B629A1 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -459,48 +398,6 @@
 			};
 			name = Release;
 		};
-		9D5BB37E3066D2CF00B629A1 /* Debug configuration for PBXNativeTarget "TimelockUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eddymogollon.TimelockUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Timelock;
-			};
-			name = Debug;
-		};
-		9D5BB37F3066D2CF00B629A1 /* Release configuration for PBXNativeTarget "TimelockUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eddymogollon.TimelockUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Timelock;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -525,14 +422,6 @@
 			buildConfigurations = (
 				9D5BB37B3066D2CF00B629A1 /* Debug configuration for PBXNativeTarget "TimelockTests" */,
 				9D5BB37C3066D2CF00B629A1 /* Release configuration for PBXNativeTarget "TimelockTests" */,
-			);
-			defaultConfigurationName = Release;
-		};
-		9D5BB37D3066D2CF00B629A1 /* Build configuration list for PBXNativeTarget "TimelockUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				9D5BB37E3066D2CF00B629A1 /* Debug configuration for PBXNativeTarget "TimelockUITests" */,
-				9D5BB37F3066D2CF00B629A1 /* Release configuration for PBXNativeTarget "TimelockUITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
