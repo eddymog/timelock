@@ -34,9 +34,13 @@ struct TimelockApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Timelock", systemImage: "clock") {
+        MenuBarExtra {
             Button("Quit Timelock") { NSApplication.shared.terminate(nil) }
+                .padding()
+        } label: {
+            MenuBarLabel(timer: timer)
         }
+        .menuBarExtraStyle(.window)
         .modelContainer(container)
     }
 }
