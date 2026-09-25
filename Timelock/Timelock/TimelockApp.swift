@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 
 enum WindowID {
+    static let main = "main"
     static let activities = "activities"
 }
 
@@ -39,12 +40,10 @@ struct TimelockApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarPopover(timer: timer)
-        } label: {
-            MenuBarLabel(timer: timer)
+        Window("Timelock", id: WindowID.main) {
+            MainView(timer: timer)
         }
-        .menuBarExtraStyle(.window)
+        .windowResizability(.contentSize)
         .modelContainer(container)
 
         Window("Activities", id: WindowID.activities) {

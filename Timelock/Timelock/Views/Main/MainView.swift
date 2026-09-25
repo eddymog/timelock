@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-struct MenuBarPopover: View {
+struct MainView: View {
     let timer: TimerService
     @Environment(\.openWindow) private var openWindow
 
@@ -26,15 +26,11 @@ struct MenuBarPopover: View {
             Divider()
             Button("Manage Activities…") {
                 openWindow(id: WindowID.activities)
-                NSApplication.shared.activate(ignoringOtherApps: true)
             }
             .buttonStyle(.plain)
-            Button("Quit Timelock") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
         }
-        .padding(12)
-        .frame(width: 260)
+        .padding(16)
+        .frame(minWidth: 300, maxWidth: 360)
     }
 
     private func runningBlock(_ session: Session) -> some View {
