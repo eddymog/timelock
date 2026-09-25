@@ -5,14 +5,8 @@ import SwiftData
 @MainActor
 final class ModelsTests: XCTestCase {
 
-    private func makeContext() throws -> ModelContext {
-        let schema = Schema([Activity.self, BlockGroup.self, BlockRule.self, Session.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-        return ModelContext(try ModelContainer(for: schema, configurations: [config]))
-    }
-
     func testActivityPersistsWithRulesGroupsAndSessions() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let activity = Activity(name: "Working", colorHex: "#FF0000", createdAt: Date(timeIntervalSince1970: 0))
         let group = BlockGroup(name: "Distractions", isGlobal: false)
         context.insert(activity)
@@ -32,7 +26,7 @@ final class ModelsTests: XCTestCase {
     }
 
     func testDeletingActivityCascadesToItsRules() throws {
-        let context = try makeContext()
+        let context = try makeTestContext()
         let activity = Activity(name: "Working", colorHex: "#FF0000")
         context.insert(activity)
         activity.rules.append(BlockRule(kind: .website, value: "youtube.com", displayName: "YouTube"))
