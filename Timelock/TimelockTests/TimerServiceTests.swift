@@ -76,4 +76,45 @@ final class TimerServiceTests: XCTestCase {
         timer.stop()
         XCTAssertNil(timer.runningSession)
     }
+
+    // MARK: Recovery (task 1.4)
+
+    func testRecoverResumesUnfinishedSession() throws {
+        let startedAt = clock.now
+        let orphan = Session(startedAt: startedAt)
+        orphan.activity = working
+        context.insert(orphan)
+        try context.save()
+        clock.advance(by: 300)
+
+        let relaunched = TimerService(context: context, clock: clock)
+        relaunched.recoverOnLaunch()
+
+        XCTAssertTrue(relaunched.runningSession === orphan)
+        XCTAssertEqual(relaunched.elapsed, 300, accuracy: 0.001)
+    }
+
+    func testRecoverWithNoUnfinishedSessionStaysIdle() throws {
+        let done = Session(startedAt: clock.now)
+        done.endedAt = clock.now.addingTimeInterval(10)
+        context.insert(done)
+        try context.save()
+
+        timer.recoverOnLaunch()
+
+        XCTAssertNil(timer.runningSession)
+    }
+
+    func testRecoveredSessionCanBeStopped() throws {
+        let orphan = Session(startedAt: clock.now)
+        context.insert(orphan)
+        try context.save()
+
+        timer.recoverOnLaunch()
+        clock.advance(by: 45)
+        timer.stop()
+
+        XCTAssertEqual(orphan.endedAt, clock.now)
+        XCTAssertNil(timer.runningSession)
+    }
 }

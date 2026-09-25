@@ -42,4 +42,14 @@ final class TimerService {
         try? context.save()
         runningSession = nil
     }
+
+    /// Resumes the session left running by a quit, crash or reboot.
+    func recoverOnLaunch() {
+        var descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate { $0.endedAt == nil },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        runningSession = try? context.fetch(descriptor).first
+    }
 }
