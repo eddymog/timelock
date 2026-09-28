@@ -26,7 +26,7 @@ final class TimerServiceTests: XCTestCase {
     }
 
     func testStartCreatesRunningSessionAndPersistsIt() throws {
-        timer.start(working)
+        try timer.start(working)
 
         let session = try XCTUnwrap(timer.runningSession)
         XCTAssertNil(session.endedAt)
@@ -36,18 +36,18 @@ final class TimerServiceTests: XCTestCase {
         XCTAssertEqual(stored.count, 1)
     }
 
-    func testElapsedIsNowMinusStartedAt() {
-        timer.start(working)
+    func testElapsedIsNowMinusStartedAt() throws {
+        try timer.start(working)
         clock.advance(by: 125)
         XCTAssertEqual(timer.elapsed, 125, accuracy: 0.001)
     }
 
     func testStopSetsEndedAtAndReturnsToIdle() throws {
-        timer.start(working)
+        try timer.start(working)
         let session = try XCTUnwrap(timer.runningSession)
         clock.advance(by: 60)
 
-        timer.stop()
+        try timer.stop()
 
         XCTAssertEqual(session.endedAt, clock.now)
         XCTAssertNil(timer.runningSession)
@@ -55,11 +55,11 @@ final class TimerServiceTests: XCTestCase {
     }
 
     func testStartingSecondActivityStopsTheFirst() throws {
-        timer.start(working)
+        try timer.start(working)
         let first = try XCTUnwrap(timer.runningSession)
         clock.advance(by: 30)
 
-        timer.start(studying)
+        try timer.start(studying)
 
         XCTAssertEqual(first.endedAt, clock.now)
         XCTAssertTrue(timer.runningSession?.activity === studying)
@@ -67,14 +67,44 @@ final class TimerServiceTests: XCTestCase {
         XCTAssertEqual(running.count, 1)
     }
 
-    func testGentleSessionCanAlwaysStop() {
-        timer.start(working)
+    func testGentleSessionCanAlwaysStop() throws {
+        try timer.start(working)
         XCTAssertTrue(timer.canStop)
     }
 
-    func testStopWhenIdleDoesNothing() {
-        timer.stop()
+    func testStopWhenIdleDoesNothing() throws {
+        try timer.stop()
         XCTAssertNil(timer.runningSession)
+    }
+
+    func testCommitmentSetsDeadlineAndPreventsStop() throws {
+        try timer.start(working, minimumDuration: 600)
+
+        XCTAssertEqual(timer.runningSession?.minimumEndAt, clock.now.addingTimeInterval(600))
+        XCTAssertFalse(timer.canStop)
+        XCTAssertEqual(timer.remainingCommitment, 600)
+        XCTAssertThrowsError(try timer.stop()) { error in
+            XCTAssertEqual(error as? TimerServiceError, .commitmentActive(remaining: 600))
+        }
+        XCTAssertNotNil(timer.runningSession)
+    }
+
+    func testCommitmentCanStopAfterDeadline() throws {
+        try timer.start(working, minimumDuration: 600)
+        clock.advance(by: 600)
+
+        XCTAssertTrue(timer.canStop)
+        try timer.stop()
+
+        XCTAssertNil(timer.runningSession)
+    }
+
+    func testCommitmentRefusesActivitySwitch() throws {
+        try timer.start(working, minimumDuration: 600)
+
+        XCTAssertThrowsError(try timer.start(studying))
+        XCTAssertTrue(timer.runningSession?.activity === working)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Session>()), 1)
     }
 
     // MARK: Recovery (task 1.4)
@@ -112,17 +142,33 @@ final class TimerServiceTests: XCTestCase {
 
         timer.recoverOnLaunch()
         clock.advance(by: 45)
-        timer.stop()
+        try timer.stop()
 
         XCTAssertEqual(orphan.endedAt, clock.now)
         XCTAssertNil(timer.runningSession)
     }
 
+    func testRecoveryRestoresActiveCommitment() throws {
+        let orphan = Session(
+            startedAt: clock.now,
+            minimumEndAt: clock.now.addingTimeInterval(600)
+        )
+        orphan.activity = working
+        context.insert(orphan)
+        try context.save()
+
+        timer.recoverOnLaunch()
+
+        XCTAssertFalse(timer.canStop)
+        XCTAssertEqual(timer.remainingCommitment, 600)
+        XCTAssertThrowsError(try timer.stop())
+    }
+
     // MARK: Tick (task 1.5)
 
-    func testElapsedChangeIsPublishedWhileRunning() {
+    func testElapsedChangeIsPublishedWhileRunning() throws {
         let ticking = TimerService(context: context, clock: clock, tickInterval: 0.05)
-        ticking.start(working)
+        try ticking.start(working)
         let changed = expectation(description: "elapsed observers notified")
         withObservationTracking {
             _ = ticking.elapsed
@@ -131,16 +177,16 @@ final class TimerServiceTests: XCTestCase {
         }
 
         wait(for: [changed], timeout: 2)
-        ticking.stop()
+        try ticking.stop()
     }
 
-    func testTickingStopsWhenSessionStops() {
+    func testTickingStopsWhenSessionStops() throws {
         let ticking = TimerService(context: context, clock: clock, tickInterval: 0.05)
-        ticking.start(working)
+        try ticking.start(working)
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         XCTAssertGreaterThan(ticking.tick, 0)
 
-        ticking.stop()
+        try ticking.stop()
         let ticksAtStop = ticking.tick
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
 
@@ -156,30 +202,30 @@ final class TimerServiceTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
 
         XCTAssertGreaterThan(ticking.tick, 0)
-        ticking.stop()
+        try ticking.stop()
     }
 
     // MARK: Blocking coordinator (Phase 2)
 
-    func testStartAppliesActivityAppBlocks() {
+    func testStartAppliesActivityAppBlocks() throws {
         let blocker = TimerServiceFakeAppBlocker()
         let coordinator = BlockingCoordinator(appBlocker: blocker)
         let blockingTimer = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
         working.rules.append(BlockRule(kind: .app, value: "com.hnc.Discord", displayName: "Discord"))
 
-        blockingTimer.start(working)
+        try blockingTimer.start(working)
 
         XCTAssertEqual(blocker.startedBundleIDs, ["com.hnc.Discord"])
         XCTAssertEqual(blocker.activityName, "Working")
     }
 
-    func testStopClearsBlocks() {
+    func testStopClearsBlocks() throws {
         let blocker = TimerServiceFakeAppBlocker()
         let coordinator = BlockingCoordinator(appBlocker: blocker)
         let blockingTimer = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
-        blockingTimer.start(working)
+        try blockingTimer.start(working)
 
-        blockingTimer.stop()
+        try blockingTimer.stop()
 
         XCTAssertTrue(blocker.didStop)
     }
@@ -219,11 +265,11 @@ final class TimerServiceTests: XCTestCase {
 
     private struct SaveFailure: Error {}
 
-    func testFailedSaveOnStartIsReportedButSessionStillRuns() {
+    func testFailedSaveOnStartIsReportedButSessionStillRuns() throws {
         let errors = ErrorCenter()
         let failing = TimerService(context: context, clock: clock, errors: errors, save: { throw SaveFailure() })
 
-        failing.start(working)
+        try failing.start(working)
 
         XCTAssertNotNil(failing.runningSession)
         XCTAssertNotNil(errors.current)
@@ -232,11 +278,11 @@ final class TimerServiceTests: XCTestCase {
     func testFailedSaveOnStopIsReportedButSessionStillEnds() throws {
         let errors = ErrorCenter()
         let failing = TimerService(context: context, clock: clock, errors: errors, save: { throw SaveFailure() })
-        failing.start(working)
+        try failing.start(working)
         errors.dismiss()
         let session = try XCTUnwrap(failing.runningSession)
 
-        failing.stop()
+        try failing.stop()
 
         XCTAssertNotNil(session.endedAt)
         XCTAssertNil(failing.runningSession)

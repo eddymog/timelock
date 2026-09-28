@@ -11,6 +11,7 @@ A macOS app that combines **Toggl-style time tracking** with **Freedom-style blo
 | Concept | Meaning |
 |---|---|
 | **Activity** | A named thing you do (Working, Studying, Writing). Has a color, a running total, and an attached block list. |
+| **Block group** | A reusable set of website and app rules that can be attached to activities or applied globally. |
 | **Block rule** | A website domain or an app that is blocked while a given activity is running. |
 | **Session** | One continuous run of an activity: start time, end time, duration. Sessions are the time-tracking records. |
 
@@ -31,9 +32,10 @@ Timelock is a regular macOS window app with a Dock icon. Closing the window does
 
 Further sections:
 - **Activities**: create/edit/delete, choose color, manage block list.
+- **Groups**: create reusable website and app rule sets, attach them to activities, or apply them globally.
 - **Timeline / History**: list of sessions by day; edit start/end, delete, or add a manual entry.
 - **Reports**: time per activity by day / week / month (bar chart + totals).
-- **Settings**: launch at login, strictness mode, global always-blocked list, notifications.
+- **Settings**: launch at login, default commitment, notifications, browser behavior, and website-blocking status.
 
 ### Stopwatch behavior
 - Counts up from 0 when an activity starts; shown as `HH:MM:SS`.
@@ -78,7 +80,7 @@ Each rule expands to common variants (`domain`, `www.domain`) automatically.
 Stronger option later: Endpoint Security framework to deny the exec before it starts. Requires a special Apple entitlement, so not in the MVP.
 
 ### Browsers / limits
-- Hosts-file blocking doesn't catch already-open connections; the app flushes the DNS cache (`dscacheutil -flushcache` + `killall -HUP mDNSResponder`) and can optionally prompt to reload the tab.
+- Hosts-file blocking doesn't catch already-open connections; the app flushes the DNS cache (`dscacheutil -flushcache` + `killall -HUP mDNSResponder`) and can ask to close browsers, close them automatically, or leave them open.
 - Blocked pages just fail to load. A local "Blocked by Timelock" page is a possible nicety.
 
 ---
@@ -170,11 +172,12 @@ Native **Swift + SwiftUI**, using only Apple frameworks (no third-party dependen
 
 **Start activity**
 1. User clicks ▶ on "Working".
-2. Stop any running session (save `endedAt`).
-3. Create a new `Session(startedAt: now)`.
-4. Resolve rules: activity rules + global rules.
-5. The script writes hosts entries and flushes DNS; app blocker quits running blocked apps and begins watching launches.
-6. The window shows the running stopwatch.
+2. Choose Gentle mode or a 25, 50, 90, or custom-minute commitment.
+3. Stop any running Gentle session (an active commitment refuses the switch).
+4. Create a new `Session(startedAt: now)` with its optional commitment deadline.
+5. Resolve rules: activity rules + attached group rules + global group rules.
+6. The script writes hosts entries and flushes DNS; app blocker quits running blocked apps and begins watching launches.
+7. The window shows the stopwatch and any remaining commitment time.
 
 **Stop activity**
 1. Set `endedAt = now`.
@@ -220,4 +223,3 @@ Native **Swift + SwiftUI**, using only Apple frameworks (no third-party dependen
 - **Personal use only.** The app won't be shared, so the sudoers approach stays.
 - **Commitment is per session.** The minimum duration is chosen each time an activity starts (optional; leaving it empty means Gentle).
 - **Shared block lists.** Groups like "Distractions" can be reused by several activities (e.g. Working and Studying).
-

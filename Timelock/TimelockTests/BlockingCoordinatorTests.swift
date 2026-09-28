@@ -107,6 +107,34 @@ final class BlockingCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(websiteBlocker.calls, [.status, .unblock])
     }
+
+    func testRefreshWebsiteSetupStatusReportsAvailability() async {
+        let websiteBlocker = FakeWebsiteBlocker()
+        let coordinator = BlockingCoordinator(
+            appBlocker: FakeAppBlocker(),
+            websiteBlocker: websiteBlocker
+        )
+
+        await coordinator.refreshWebsiteSetupStatus()
+
+        XCTAssertEqual(coordinator.websiteSetupState, .available(.inactive))
+        XCTAssertEqual(websiteBlocker.calls, [.status])
+    }
+
+    func testRefreshWebsiteSetupStatusReportsFailure() async {
+        let websiteBlocker = FakeWebsiteBlocker()
+        websiteBlocker.error = TestWebsiteError.failed
+        let coordinator = BlockingCoordinator(
+            appBlocker: FakeAppBlocker(),
+            websiteBlocker: websiteBlocker
+        )
+
+        await coordinator.refreshWebsiteSetupStatus()
+
+        guard case .unavailable = coordinator.websiteSetupState else {
+            return XCTFail("Expected unavailable setup state")
+        }
+    }
 }
 
 private final class FakeAppBlocker: AppBlocking {

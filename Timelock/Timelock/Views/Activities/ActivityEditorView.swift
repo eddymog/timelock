@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import SwiftData
-import UniformTypeIdentifiers
 
 /// Minimal activity manager: add, rename, recolor, archive (FR-101, FR-102).
 struct ActivityEditorView: View {
@@ -35,10 +34,8 @@ private struct ActivityEditorRow: View {
     @Bindable var activity: Activity
     @Environment(\.modelContext) private var context
     @Environment(ErrorCenter.self) private var errors
-    @State private var websiteInput = ""
-    @State private var websiteError: String?
-    @State private var websitesExpanded = false
-    @State private var appsExpanded = false
+    @Query private var groups: [BlockGroup]
+    @State private var groupsExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -52,74 +49,34 @@ private struct ActivityEditorRow: View {
                     .onChange(of: activity.isArchived) { save() }
             }
 
-            ruleSection("Websites", isExpanded: $websitesExpanded) {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(activity.rules.filter { $0.kind == .website }) { rule in
-                        HStack {
-                            Image(systemName: "globe")
-                                .foregroundStyle(.secondary)
-                            Text(rule.value)
-                            Spacer()
-                            Button {
-                                remove(rule)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove \(rule.value)")
-                        }
-                    }
+            BlockRuleEditor(
+                rules: activity.rules,
+                ownerName: activity.name,
+                onAdd: { rule in
+                    activity.rules.append(rule)
+                    save()
+                },
+                onRemove: remove
+            )
 
-                    HStack {
-                        TextField("Domain or URL", text: $websiteInput)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { addWebsiteRule() }
-                        Button {
-                            addWebsiteRule()
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Add website")
-                    }
-                    if let websiteError {
-                        Text(websiteError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-                .padding(.leading, 4)
-            }
-
-            ruleSection("Apps", isExpanded: $appsExpanded) {
+            ruleSection("Groups", isExpanded: $groupsExpanded) {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(activity.rules.filter { $0.kind == .app }) { rule in
-                        HStack {
-                            Image(systemName: "app")
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(rule.displayName)
-                                Text(rule.value)
+                    ForEach(groups.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) { group in
+                        if group.isGlobal {
+                            HStack {
+                                Image(systemName: "globe.americas.fill")
+                                    .foregroundStyle(.secondary)
+                                Text(group.name)
+                                Spacer()
+                                Text("Global")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Button {
-                                remove(rule)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove \(rule.displayName)")
+                        } else {
+                            Toggle(group.name, isOn: groupBinding(group))
+                                .toggleStyle(.checkbox)
                         }
                     }
-
-                    Button {
-                        addAppRule()
-                    } label: {
-                        Label("Add App", systemImage: "plus")
-                    }
-                    .buttonStyle(.borderless)
                 }
                 .padding(.leading, 4)
             }
@@ -172,59 +129,24 @@ private struct ActivityEditorRow: View {
         )
     }
 
-    private func addAppRule() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.application]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.message = "Choose an app to block while this activity is running."
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier else {
-            errors.report(ActivityEditorError.invalidAppBundle, while: "Adding the app rule")
-            return
-        }
-
-        if activity.rules.contains(where: { $0.kind == .app && $0.value == bundleID }) {
-            return
-        }
-
-        let displayName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? url.deletingPathExtension().lastPathComponent
-        activity.rules.append(BlockRule(kind: .app, value: bundleID, displayName: displayName))
-        save()
-    }
-
-    private func addWebsiteRule() {
-        guard let domain = DomainNormalizer.normalize(websiteInput) else {
-            websiteError = "Enter a valid domain or HTTP(S) URL."
-            return
-        }
-        websiteError = nil
-        websiteInput = ""
-        guard !activity.rules.contains(where: { $0.kind == .website && $0.value == domain }) else { return }
-
-        activity.rules.append(BlockRule(kind: .website, value: domain, displayName: domain))
-        save()
-    }
-
     private func remove(_ rule: BlockRule) {
         activity.rules.removeAll { $0 === rule }
         context.delete(rule)
         save()
     }
-}
 
-private enum ActivityEditorError: LocalizedError {
-    case invalidAppBundle
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidAppBundle:
-            "The selected app does not have a bundle identifier."
-        }
+    private func groupBinding(_ group: BlockGroup) -> Binding<Bool> {
+        Binding(
+            get: { activity.groups.contains { $0.id == group.id } },
+            set: { isAttached in
+                if isAttached {
+                    guard !activity.groups.contains(where: { $0.id == group.id }) else { return }
+                    activity.groups.append(group)
+                } else {
+                    activity.groups.removeAll { $0.id == group.id }
+                }
+                save()
+            }
+        )
     }
 }

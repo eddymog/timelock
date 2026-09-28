@@ -49,9 +49,19 @@ final class TimerService {
         return clock.now >= minimumEndAt
     }
 
-    func start(_ activity: Activity) {
-        stop()
-        let session = Session(startedAt: clock.now)
+    var remainingCommitment: TimeInterval {
+        _ = tick
+        guard let minimumEndAt = runningSession?.minimumEndAt else { return 0 }
+        return max(0, minimumEndAt.timeIntervalSince(clock.now))
+    }
+
+    func start(_ activity: Activity, minimumDuration: TimeInterval? = nil) throws {
+        try stop()
+        let duration = max(0, minimumDuration ?? 0)
+        let session = Session(
+            startedAt: clock.now,
+            minimumEndAt: duration > 0 ? clock.now.addingTimeInterval(duration) : nil
+        )
         session.activity = activity
         context.insert(session)
         errors.perform("Saving the new session", save)
@@ -59,8 +69,11 @@ final class TimerService {
         applyBlocks(for: activity)
     }
 
-    func stop() {
+    func stop() throws {
         guard let session = runningSession else { return }
+        guard canStop else {
+            throw TimerServiceError.commitmentActive(remaining: remainingCommitment)
+        }
         session.endedAt = clock.now
         errors.perform("Saving the stopped session", save)
         runningSession = nil
@@ -107,5 +120,16 @@ final class TimerService {
     private func stopTicking() {
         ticker?.invalidate()
         ticker = nil
+    }
+}
+
+enum TimerServiceError: LocalizedError, Equatable {
+    case commitmentActive(remaining: TimeInterval)
+
+    var errorDescription: String? {
+        switch self {
+        case .commitmentActive(let remaining):
+            "Commitment is active for another \(DurationFormatter.hhmmss(remaining))."
+        }
     }
 }

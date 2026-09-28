@@ -11,6 +11,7 @@ protocol AppBlocking {
 @Observable
 final class BlockingCoordinator {
     private(set) var websiteWarning: String?
+    private(set) var websiteSetupState: WebsiteSetupState = .unknown
 
     private let appBlocker: AppBlocking
     @ObservationIgnored private let websiteBlocker: WebsiteBlocking
@@ -82,6 +83,15 @@ final class BlockingCoordinator {
         await websiteTask?.value
     }
 
+    func refreshWebsiteSetupStatus() async {
+        websiteSetupState = .checking
+        do {
+            websiteSetupState = .available(try await websiteBlocker.status())
+        } catch {
+            websiteSetupState = .unavailable(error.localizedDescription)
+        }
+    }
+
     private func enqueueWebsiteOperation(_ operation: @escaping @MainActor () async -> Void) {
         let previousTask = websiteTask
         websiteTask = Task { @MainActor in
@@ -91,6 +101,13 @@ final class BlockingCoordinator {
     }
 
     private static let unavailableMessage = "Website blocking unavailable – run install.sh"
+}
+
+enum WebsiteSetupState: Equatable {
+    case unknown
+    case checking
+    case available(WebsiteBlockerStatus)
+    case unavailable(String)
 }
 
 func effectiveRules(for activity: Activity, globalGroups: [BlockGroup]) -> [BlockRule] {

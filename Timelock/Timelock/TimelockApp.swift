@@ -19,6 +19,7 @@ struct TimelockApp: App {
     @State private var timer: TimerService
     @State private var errors: ErrorCenter
     @State private var blockingCoordinator: BlockingCoordinator
+    @State private var settings: AppSettings
 
     init() {
         let schema = Schema([
@@ -38,19 +39,22 @@ struct TimelockApp: App {
         self.container = container
 
         let errors = ErrorCenter()
+        let settings = AppSettings()
         errors.perform("Creating the starter activity") { try ActivitySeeder.seedIfEmpty(container.mainContext) }
-        let blocker = AppBlocker()
+        let notifications = NotificationService(isEnabled: { settings.notificationsEnabled })
+        let blocker = AppBlocker(notificationService: notifications)
         let coordinator = BlockingCoordinator(appBlocker: blocker, websiteBlocker: HostsFileBlocker())
         let timer = TimerService(context: container.mainContext, errors: errors, blockingCoordinator: coordinator)
         timer.recoverOnLaunch()
         _timer = State(initialValue: timer)
         _errors = State(initialValue: errors)
         _blockingCoordinator = State(initialValue: coordinator)
+        _settings = State(initialValue: settings)
     }
 
     var body: some Scene {
         Window("Timelock", id: WindowID.main) {
-            MainView(timer: timer, blockingCoordinator: blockingCoordinator)
+            MainView(timer: timer, blockingCoordinator: blockingCoordinator, settings: settings)
         }
         .defaultSize(width: 820, height: 560)
         .modelContainer(container)

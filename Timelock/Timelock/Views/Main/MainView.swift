@@ -5,10 +5,12 @@ import SwiftData
 struct MainView: View {
     let timer: TimerService
     let blockingCoordinator: BlockingCoordinator
+    let settings: AppSettings
     private let browserController = BrowserController()
     @Environment(ErrorCenter.self) private var errors
     @State private var selection: MainSection? = .timer
     @State private var pendingBrowserClose: PendingBrowserClose?
+    @State private var pendingStart: Activity?
 
     @Query(filter: #Predicate<Activity> { !$0.isArchived }, sort: \Activity.createdAt)
     private var activities: [Activity]
@@ -31,12 +33,24 @@ struct MainView: View {
             case .activities:
                 ActivityEditorView()
                     .navigationTitle("Activities")
+            case .groups:
+                GroupEditorView()
             case .history:
                 HistoryView(timer: timer)
+            case .reports:
+                ReportsView(timer: timer)
+            case .settings:
+                SettingsView(settings: settings, blockingCoordinator: blockingCoordinator)
             }
         }
         .frame(minWidth: 720, minHeight: 480)
         .errorAlert(errors)
+        .sheet(item: $pendingStart) { activity in
+            StartActivitySheet(activity: activity, defaultCommitment: settings.defaultCommitment) { duration in
+                pendingStart = nil
+                prepareStart(activity, minimumDuration: duration)
+            }
+        }
         .alert(
             "Close browser before starting?",
             isPresented: Binding(
@@ -50,7 +64,7 @@ struct MainView: View {
             }
             Button("Start Without Closing") {
                 pendingBrowserClose = nil
-                timer.start(request.activity)
+                start(request)
             }
             Button("Close and Start") {
                 pendingBrowserClose = nil
@@ -122,27 +136,59 @@ struct MainView: View {
     }
 
     private func requestStart(_ activity: Activity) {
+        guard timer.runningSession == nil || timer.canStop else {
+            errors.report(
+                TimerServiceError.commitmentActive(remaining: timer.remainingCommitment),
+                while: "Starting \(activity.name)"
+            )
+            return
+        }
+        pendingStart = activity
+    }
+
+    private func prepareStart(_ activity: Activity, minimumDuration: TimeInterval?) {
         let hasWebsiteRules = effectiveRules(for: activity, globalGroups: globalGroups)
             .contains { $0.kind == .website }
         guard hasWebsiteRules else {
-            timer.start(activity)
+            start(PendingBrowserClose(activity: activity, minimumDuration: minimumDuration, browsers: []))
             return
         }
 
         let browsers = browserController.runningBrowsers()
         guard !browsers.isEmpty else {
-            timer.start(activity)
+            start(PendingBrowserClose(activity: activity, minimumDuration: minimumDuration, browsers: []))
             return
         }
-        pendingBrowserClose = PendingBrowserClose(activity: activity, browsers: browsers)
+
+        let request = PendingBrowserClose(
+            activity: activity,
+            minimumDuration: minimumDuration,
+            browsers: browsers
+        )
+        switch settings.browserStartBehavior {
+        case .ask:
+            pendingBrowserClose = request
+        case .close:
+            Task { await closeBrowsersAndStart(request) }
+        case .keepOpen:
+            start(request)
+        }
     }
 
     private func closeBrowsersAndStart(_ request: PendingBrowserClose) async {
         do {
             try await browserController.close(request.browsers)
-            timer.start(request.activity)
+            start(request)
         } catch {
             errors.report(error, while: "Closing the browser")
+        }
+    }
+
+    private func start(_ request: PendingBrowserClose) {
+        do {
+            try timer.start(request.activity, minimumDuration: request.minimumDuration)
+        } catch {
+            errors.report(error, while: "Starting \(request.activity.name)")
         }
     }
 
@@ -155,7 +201,24 @@ struct MainView: View {
             Text(DurationFormatter.hhmmss(timer.elapsed))
                 .font(.system(size: 34, weight: .medium, design: .rounded))
                 .monospacedDigit()
-            Button("Stop") { timer.stop() }
+            if session.minimumEndAt != nil, !timer.canStop {
+                Label(
+                    "Commitment \(DurationFormatter.hhmmss(timer.remainingCommitment))",
+                    systemImage: "lock.fill"
+                )
+                .font(.callout)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            }
+            Button {
+                do {
+                    try timer.stop()
+                } catch {
+                    errors.report(error, while: "Stopping the session")
+                }
+            } label: {
+                Label("Stop", systemImage: "stop.fill")
+            }
                 .disabled(!timer.canStop)
         }
     }
@@ -164,6 +227,7 @@ struct MainView: View {
 private struct PendingBrowserClose: Identifiable {
     let id = UUID()
     let activity: Activity
+    let minimumDuration: TimeInterval?
     let browsers: [NSRunningApplication]
 
     var browserNames: String {
@@ -174,7 +238,10 @@ private struct PendingBrowserClose: Identifiable {
 private enum MainSection: String, CaseIterable, Identifiable {
     case timer
     case activities
+    case groups
     case history
+    case reports
+    case settings
 
     var id: Self { self }
     var title: String { rawValue.capitalized }
@@ -183,7 +250,105 @@ private enum MainSection: String, CaseIterable, Identifiable {
         switch self {
         case .timer: "timer"
         case .activities: "list.bullet"
+        case .groups: "square.stack.3d.up"
         case .history: "clock.arrow.circlepath"
+        case .reports: "chart.bar.xaxis"
+        case .settings: "gearshape"
+        }
+    }
+}
+
+private struct StartActivitySheet: View {
+    let activity: Activity
+    let onStart: (TimeInterval?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var choice: CommitmentChoice
+    @State private var customMinutes = 30
+
+    init(
+        activity: Activity,
+        defaultCommitment: CommitmentPreset,
+        onStart: @escaping (TimeInterval?) -> Void
+    ) {
+        self.activity = activity
+        self.onStart = onStart
+        _choice = State(initialValue: CommitmentChoice(defaultCommitment))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Start \(activity.name)")
+                .font(.title2.weight(.semibold))
+
+            Picker("Commitment", selection: $choice) {
+                ForEach(CommitmentChoice.allCases) { choice in
+                    Text(choice.title).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if choice == .custom {
+                HStack {
+                    Text("Duration")
+                    TextField("Minutes", value: $customMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 72)
+                    Text("minutes")
+                        .foregroundStyle(.secondary)
+                    Stepper("Minutes", value: $customMinutes, in: 1...480)
+                        .labelsHidden()
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Start") { onStart(duration) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+    }
+
+    private var duration: TimeInterval? {
+        switch choice {
+        case .none: nil
+        case .twentyFive: 25 * 60
+        case .fifty: 50 * 60
+        case .ninety: 90 * 60
+        case .custom: TimeInterval(min(max(customMinutes, 1), 480) * 60)
+        }
+    }
+}
+
+private enum CommitmentChoice: String, CaseIterable, Identifiable {
+    case none
+    case twentyFive
+    case fifty
+    case ninety
+    case custom
+
+    init(_ preset: CommitmentPreset) {
+        switch preset {
+        case .none: self = .none
+        case .twentyFive: self = .twentyFive
+        case .fifty: self = .fifty
+        case .ninety: self = .ninety
+        }
+    }
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .none: "None"
+        case .twentyFive: "25"
+        case .fifty: "50"
+        case .ninety: "90"
+        case .custom: "Custom"
         }
     }
 }

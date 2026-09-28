@@ -37,4 +37,21 @@ final class ModelsTests: XCTestCase {
 
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<BlockRule>()), 0)
     }
+
+    func testDeletingGroupCascadesRulesAndDetachesActivity() throws {
+        let context = try makeTestContext()
+        let activity = Activity(name: "Working", colorHex: "#FF0000")
+        let group = BlockGroup(name: "Distractions")
+        context.insert(activity)
+        context.insert(group)
+        group.rules.append(BlockRule(kind: .website, value: "youtube.com", displayName: "YouTube"))
+        activity.groups.append(group)
+        try context.save()
+
+        context.delete(group)
+        try context.save()
+
+        XCTAssertTrue(activity.groups.isEmpty)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<BlockRule>()), 0)
+    }
 }
