@@ -159,6 +159,62 @@ final class TimerServiceTests: XCTestCase {
         ticking.stop()
     }
 
+    // MARK: Blocking coordinator (Phase 2)
+
+    func testStartAppliesActivityAppBlocks() {
+        let blocker = TimerServiceFakeAppBlocker()
+        let coordinator = BlockingCoordinator(appBlocker: blocker)
+        let blockingTimer = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
+        working.rules.append(BlockRule(kind: .app, value: "com.hnc.Discord", displayName: "Discord"))
+
+        blockingTimer.start(working)
+
+        XCTAssertEqual(blocker.startedBundleIDs, ["com.hnc.Discord"])
+        XCTAssertEqual(blocker.activityName, "Working")
+    }
+
+    func testStopClearsBlocks() {
+        let blocker = TimerServiceFakeAppBlocker()
+        let coordinator = BlockingCoordinator(appBlocker: blocker)
+        let blockingTimer = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
+        blockingTimer.start(working)
+
+        blockingTimer.stop()
+
+        XCTAssertTrue(blocker.didStop)
+    }
+
+    func testRecoverAppliesBlocksForRecoveredSession() throws {
+        let blocker = TimerServiceFakeAppBlocker()
+        let coordinator = BlockingCoordinator(appBlocker: blocker)
+        working.rules.append(BlockRule(kind: .app, value: "com.hnc.Discord", displayName: "Discord"))
+        let orphan = Session(startedAt: clock.now)
+        orphan.activity = working
+        context.insert(orphan)
+        try context.save()
+
+        let relaunched = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
+        relaunched.recoverOnLaunch()
+
+        XCTAssertEqual(blocker.startedBundleIDs, ["com.hnc.Discord"])
+        XCTAssertEqual(blocker.activityName, "Working")
+    }
+
+    func testRecoverWithNoSessionChecksSetupAndClearsStaleWebsiteBlocks() async {
+        let websiteBlocker = TimerServiceFakeWebsiteBlocker()
+        let coordinator = BlockingCoordinator(
+            appBlocker: TimerServiceFakeAppBlocker(),
+            websiteBlocker: websiteBlocker
+        )
+        let relaunched = TimerService(context: context, clock: clock, blockingCoordinator: coordinator)
+
+        relaunched.recoverOnLaunch()
+        await coordinator.waitForPendingWebsiteOperations()
+
+        XCTAssertEqual(websiteBlocker.statusCount, 1)
+        XCTAssertEqual(websiteBlocker.unblockCount, 1)
+    }
+
     // MARK: Persistence errors
 
     private struct SaveFailure: Error {}
@@ -185,5 +241,36 @@ final class TimerServiceTests: XCTestCase {
         XCTAssertNotNil(session.endedAt)
         XCTAssertNil(failing.runningSession)
         XCTAssertNotNil(errors.current)
+    }
+}
+
+private final class TimerServiceFakeAppBlocker: AppBlocking {
+    private(set) var startedBundleIDs: [String] = []
+    private(set) var activityName: String?
+    private(set) var didStop = false
+
+    func start(bundleIDs: [String], activityName: String) {
+        startedBundleIDs = bundleIDs
+        self.activityName = activityName
+    }
+
+    func stop() {
+        didStop = true
+    }
+}
+
+private final class TimerServiceFakeWebsiteBlocker: WebsiteBlocking {
+    private(set) var statusCount = 0
+    private(set) var unblockCount = 0
+
+    func block(_ domains: [String]) async throws {}
+
+    func unblock() async throws {
+        unblockCount += 1
+    }
+
+    func status() async throws -> WebsiteBlockerStatus {
+        statusCount += 1
+        return .inactive
     }
 }

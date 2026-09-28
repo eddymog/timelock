@@ -1,0 +1,113 @@
+#!/bin/sh
+
+set -eu
+
+HOSTS_FILE="${HOSTS_FILE:-/etc/hosts}"
+BEGIN_MARKER='# >>> Timelock BEGIN'
+END_MARKER='# <<< Timelock END'
+
+usage() {
+    echo "usage: timelock-hosts block <domain>... | unblock | status" >&2
+    exit 64
+}
+
+validate_domain() {
+    printf '%s\n' "$1" | /usr/bin/grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+}
+
+make_temp() {
+    /usr/bin/mktemp "${HOSTS_FILE}.timelock.XXXXXX"
+}
+
+strip_block() {
+    source_file=$1
+    destination_file=$2
+    /usr/bin/awk -v begin="$BEGIN_MARKER" -v end="$END_MARKER" '
+        $0 == begin {
+            if (inside) exit 65
+            inside = 1
+            next
+        }
+        $0 == end {
+            if (!inside) exit 65
+            inside = 0
+            next
+        }
+        !inside { print }
+        END { if (inside) exit 65 }
+    ' "$source_file" > "$destination_file"
+}
+
+install_temp() {
+    temp_file=$1
+    if [ "$HOSTS_FILE" = "/etc/hosts" ]; then
+        mode=$(/usr/bin/stat -f '%Lp' "$HOSTS_FILE")
+        owner=$(/usr/bin/stat -f '%u:%g' "$HOSTS_FILE")
+        /bin/chmod "$mode" "$temp_file"
+        /usr/sbin/chown "$owner" "$temp_file"
+    else
+        /bin/chmod --reference="$HOSTS_FILE" "$temp_file" 2>/dev/null || true
+    fi
+    /bin/mv -f "$temp_file" "$HOSTS_FILE"
+}
+
+flush_dns() {
+    [ "$HOSTS_FILE" != "/etc/hosts" ] && return
+    /usr/bin/dscacheutil -flushcache
+    /usr/bin/killall -HUP mDNSResponder
+}
+
+rewrite_without_block() {
+    temp_file=$(make_temp)
+    trap '/bin/rm -f "$temp_file"' EXIT HUP INT TERM
+    strip_block "$HOSTS_FILE" "$temp_file"
+    install_temp "$temp_file"
+    trap - EXIT HUP INT TERM
+}
+
+[ "$#" -ge 1 ] || usage
+command=$1
+shift
+
+case "$command" in
+    block)
+        [ "$#" -ge 1 ] || usage
+        for domain in "$@"; do
+            validate_domain "$domain" || {
+                echo "invalid domain: $domain" >&2
+                exit 65
+            }
+        done
+
+        temp_file=$(make_temp)
+        trap '/bin/rm -f "$temp_file"' EXIT HUP INT TERM
+        strip_block "$HOSTS_FILE" "$temp_file"
+        {
+            printf '%s\n' "$BEGIN_MARKER"
+            for domain in "$@"; do
+                printf '0.0.0.0 %s\n' "$domain"
+                printf ':: %s\n' "$domain"
+            done
+            printf '%s\n' "$END_MARKER"
+        } >> "$temp_file"
+        install_temp "$temp_file"
+        trap - EXIT HUP INT TERM
+        flush_dns
+        ;;
+    unblock)
+        [ "$#" -eq 0 ] || usage
+        rewrite_without_block
+        flush_dns
+        ;;
+    status)
+        [ "$#" -eq 0 ] || usage
+        if /usr/bin/grep -Fqx "$BEGIN_MARKER" "$HOSTS_FILE"; then
+            echo active
+        else
+            echo inactive
+        fi
+        ;;
+    *)
+        usage
+        ;;
+esac

@@ -4,6 +4,7 @@ import SwiftData
 
 /// Owns the running session. The only type that starts or stops one.
 @Observable
+@MainActor
 final class TimerService {
     private(set) var runningSession: Session? {
         didSet { runningSession == nil ? stopTicking() : startTicking() }
@@ -15,20 +16,23 @@ final class TimerService {
     @ObservationIgnored private let clock: Clock
     @ObservationIgnored private let tickInterval: TimeInterval
     @ObservationIgnored private let errors: ErrorCenter
+    @ObservationIgnored private let blockingCoordinator: BlockingCoordinator?
     @ObservationIgnored private let save: () throws -> Void
     @ObservationIgnored private var ticker: Timer?
 
     init(
         context: ModelContext,
-        clock: Clock = SystemClock(),
+        clock: Clock? = nil,
         tickInterval: TimeInterval = 1,
-        errors: ErrorCenter = ErrorCenter(),
+        errors: ErrorCenter? = nil,
+        blockingCoordinator: BlockingCoordinator? = nil,
         save: (() throws -> Void)? = nil
     ) {
         self.context = context
-        self.clock = clock
+        self.clock = clock ?? SystemClock()
         self.tickInterval = tickInterval
-        self.errors = errors
+        self.errors = errors ?? ErrorCenter()
+        self.blockingCoordinator = blockingCoordinator
         self.save = save ?? { try context.save() }
     }
 
@@ -52,6 +56,7 @@ final class TimerService {
         context.insert(session)
         errors.perform("Saving the new session", save)
         runningSession = session
+        applyBlocks(for: activity)
     }
 
     func stop() {
@@ -59,6 +64,7 @@ final class TimerService {
         session.endedAt = clock.now
         errors.perform("Saving the stopped session", save)
         runningSession = nil
+        blockingCoordinator?.clear()
     }
 
     /// Resumes the session left running by a quit, crash or reboot.
@@ -70,8 +76,22 @@ final class TimerService {
         descriptor.fetchLimit = 1
         do {
             runningSession = try context.fetch(descriptor).first
+            if let activity = runningSession?.activity {
+                applyBlocks(for: activity)
+            } else {
+                blockingCoordinator?.prepareForIdleLaunch()
+            }
         } catch {
             errors.report(error, while: "Restoring the running session")
+        }
+    }
+
+    private func applyBlocks(for activity: Activity) {
+        do {
+            let globalGroups = try context.fetch(FetchDescriptor<BlockGroup>(predicate: #Predicate { $0.isGlobal }))
+            blockingCoordinator?.apply(activity: activity, globalGroups: globalGroups)
+        } catch {
+            errors.report(error, while: "Loading block rules")
         }
     }
 
